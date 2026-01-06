@@ -19,9 +19,19 @@ import {
 import { preloadAssetSet } from '../utils/preload';
 import { compositeProduct } from '../utils/compositor';
 import constants from '../utils/config';
+import { getRandomName } from '../utils/names';
 
 function keys<T>(obj: Record<string, T>): string[] {
   return Object.keys(obj);
+}
+
+function isSameConfiguration(a: Configuration, b: Configuration) {
+  return (
+    a.base === b.base &&
+    a.shade === b.shade &&
+    a.camera === b.camera &&
+    a.state === b.state
+  );
 }
 
 export default function Configurator() {
@@ -36,7 +46,9 @@ export default function Configurator() {
   const [fetchLogs, setFetchLogs] = useState<any[]>([]);
   const [activePart, setActivePart] = useState<PartKey>('shade');
   const [colorFilter, setColorFilter] = useState<ColorFilter>({ search: '', finish: 'all', part: 'shade' });
+  const [lampName, setLampName] = useState<string>(() => getRandomName());
   const debounceRef = useRef<number>();
+  const configRef = useRef<Configuration>(configuration);
 
   useEffect(() => {
     let mounted = true;
@@ -52,18 +64,28 @@ export default function Configurator() {
   }, []);
 
   useEffect(() => {
+    configRef.current = configuration;
+  }, [configuration]);
+
+  useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      probeAvailability(configuration)
+    const requestConfig = configuration;
+    const timeoutId = window.setTimeout(() => {
+      probeAvailability(requestConfig)
         .then((res) => {
+          if (!isSameConfiguration(configRef.current, requestConfig)) return;
           setCurrentAsset(res);
           preloadAssetSet(res);
           setStatus(res.exists ? 'Assets ready' : 'Missing render assets');
         })
         .catch(() => {
-          setStatus('Probe failed');
+          if (isSameConfiguration(configRef.current, requestConfig)) {
+            setStatus('Probe failed');
+          }
         });
     }, 200);
+    debounceRef.current = timeoutId;
+    return () => window.clearTimeout(timeoutId);
   }, [configuration]);
 
   useEffect(() => {
@@ -130,6 +152,7 @@ export default function Configurator() {
       BaseColor: JSON.stringify(configuration.colors.base),
       AdapterColor: JSON.stringify(configuration.colors.adapter),
       GuardColor: JSON.stringify(configuration.colors.guard),
+      LampName: lampName,
       PreviewUrl: currentAsset?.beautyUrl || '',
       ConfiguratorVersion: constants.version
     };
@@ -219,6 +242,24 @@ export default function Configurator() {
         </div>
 
         <div className="card">
+          <h3>Lamp name</h3>
+          <div className="filter-row">
+            <label htmlFor="lamp-name">Lamp name</label>
+            <div className="filter-row">
+              <input
+                id="lamp-name"
+                type="text"
+                value={lampName}
+                onChange={(e) => setLampName(e.target.value)}
+              />
+              <button type="button" onClick={() => setLampName(getRandomName())}>
+                🎲
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
           <button className="primary" onClick={handleAddToCart}>Add to cart</button>
           <div className="status">{status}</div>
         </div>
@@ -233,6 +274,8 @@ export default function Configurator() {
               <pre>{JSON.stringify(currentAsset, null, 2)}</pre>
               <h4>Fetch logs</h4>
               <pre>{JSON.stringify(fetchLogs, null, 2)}</pre>
+              <h4>Lamp name</h4>
+              <pre>{lampName}</pre>
             </div>
           )}
         </div>

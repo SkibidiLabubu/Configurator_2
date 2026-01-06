@@ -96,8 +96,13 @@ async function drawTintedMask(
 
   const data = maskData.data;
   for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3] / 255;
-    if (alpha < 0.01) continue;
+    const maskAlphaChannel = data[i + 3] / 255;
+    const maskLum = luminance(data[i], data[i + 1], data[i + 2]) / 255;
+    const alpha = maskAlphaChannel > 0 ? maskAlphaChannel : maskLum;
+    if (alpha < 0.01) {
+      baseData.data[i + 3] = 0;
+      continue;
+    }
 
     const r = baseData.data[i];
     const g = baseData.data[i + 1];
@@ -131,6 +136,8 @@ async function drawTintedMask(
       baseData.data[i + 1] += eg * emissionIntensity;
       baseData.data[i + 2] += eb * emissionIntensity;
     }
+
+    baseData.data[i + 3] = Math.min(255, alpha * 255);
   }
 
   bctx.putImageData(baseData, 0, 0);
