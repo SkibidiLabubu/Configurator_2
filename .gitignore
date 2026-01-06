@@ -1,0 +1,17 @@
+node_modules
+.idea
+.DS_Store
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist
+.vscode
+# Render assets
+public/renders/*
+!public/renders/.gitkeep
+!public/renders/README.md
+# Local source render package
+renders/*
+!renders/.gitkeep
+!renders/README.md
