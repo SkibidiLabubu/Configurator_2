@@ -6,11 +6,21 @@ interface CompositeOptions {
   emissionIntensity?: number;
 }
 
-// Alle 2D-contexten die we ondersteunen
+// Alle 2D-contexten die we willen ondersteunen
 type Rendering2DContext = OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D;
 
 function luminance(r: number, g: number, b: number) {
   return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+function get2DContext(
+  canvas: OffscreenCanvas | HTMLCanvasElement
+): Rendering2DContext {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D context not available');
+  }
+  return ctx as Rendering2DContext;
 }
 
 async function loadImage(url: string, logs: FetchLog[]): Promise<ImageBitmap> {
@@ -33,28 +43,30 @@ async function drawTintedMask(
   emissionIntensity?: number
 ) {
   const { width, height } = base;
+
+  // Mask canvas
   const temp =
     typeof OffscreenCanvas !== 'undefined'
       ? new OffscreenCanvas(width, height)
       : (document.createElement('canvas') as HTMLCanvasElement);
   temp.width = width;
   temp.height = height;
-  const tctx = temp.getContext('2d');
-  if (!tctx) return;
+  const tctx = get2DContext(temp);
   tctx.drawImage(mask, 0, 0, width, height);
   const maskData = tctx.getImageData(0, 0, width, height);
 
+  // Base canvas
   const baseCanvas =
     typeof OffscreenCanvas !== 'undefined'
       ? new OffscreenCanvas(width, height)
       : (document.createElement('canvas') as HTMLCanvasElement);
   baseCanvas.width = width;
   baseCanvas.height = height;
-  const bctx = baseCanvas.getContext('2d');
-  if (!bctx) return;
+  const bctx = get2DContext(baseCanvas);
   bctx.drawImage(base, 0, 0, width, height);
   const baseData = bctx.getImageData(0, 0, width, height);
 
+  // AO canvas (optioneel)
   let aoData: ImageData | undefined;
   if (aoBitmap) {
     const aoCanvas =
@@ -63,11 +75,12 @@ async function drawTintedMask(
         : (document.createElement('canvas') as HTMLCanvasElement);
     aoCanvas.width = width;
     aoCanvas.height = height;
-    const aoCtx = aoCanvas.getContext('2d');
-    aoCtx?.drawImage(aoBitmap, 0, 0, width, height);
-    aoData = aoCtx?.getImageData(0, 0, width, height);
+    const aoCtx = get2DContext(aoCanvas);
+    aoCtx.drawImage(aoBitmap, 0, 0, width, height);
+    aoData = aoCtx.getImageData(0, 0, width, height);
   }
 
+  // Emission canvas (optioneel)
   let emissionData: ImageData | undefined;
   if (emissionBitmap) {
     const eCanvas =
@@ -76,9 +89,9 @@ async function drawTintedMask(
         : (document.createElement('canvas') as HTMLCanvasElement);
     eCanvas.width = width;
     eCanvas.height = height;
-    const eCtx = eCanvas.getContext('2d');
-    eCtx?.drawImage(emissionBitmap, 0, 0, width, height);
-    emissionData = eCtx?.getImageData(0, 0, width, height);
+    const eCtx = get2DContext(eCanvas);
+    eCtx.drawImage(emissionBitmap, 0, 0, width, height);
+    emissionData = eCtx.getImageData(0, 0, width, height);
   }
 
   const data = maskData.data;
@@ -91,9 +104,12 @@ async function drawTintedMask(
     const b = baseData.data[i + 2];
     const lum = luminance(r, g, b) / 255;
 
-    const tintR = colorStrength * (color.hex ? parseInt(color.hex.slice(1, 3), 16) : 0);
-    const tintG = colorStrength * (color.hex ? parseInt(color.hex.slice(3, 5), 16) : 0);
-    const tintB = colorStrength * (color.hex ? parseInt(color.hex.slice(5, 7), 16) : 0);
+    const tintR =
+      colorStrength * (color.hex ? parseInt(color.hex.slice(1, 3), 16) : 0);
+    const tintG =
+      colorStrength * (color.hex ? parseInt(color.hex.slice(3, 5), 16) : 0);
+    const tintB =
+      colorStrength * (color.hex ? parseInt(color.hex.slice(5, 7), 16) : 0);
 
     baseData.data[i] = r * (1 - alpha) + tintR * lum * alpha;
     baseData.data[i + 1] = g * (1 - alpha) + tintG * lum * alpha;
@@ -136,9 +152,7 @@ export async function compositeProduct(
       ? new OffscreenCanvas(2048, 2048)
       : (document.createElement('canvas') as HTMLCanvasElement);
 
-  const rawCtx = canvas.getContext('2d');
-  if (!rawCtx) throw new Error('Canvas not available');
-  const ctx = rawCtx as Rendering2DContext;
+  const ctx = get2DContext(canvas);
 
   const baseCandidate = assets.beautyFgUrl || assets.beautyUrl || assets.thumbUrl;
   if (!baseCandidate) throw new Error('No base asset available');
@@ -166,14 +180,27 @@ export async function compositeProduct(
 
   ctx.drawImage(baseBitmap || (fallbackBitmap as ImageBitmap), 0, 0, width, height);
 
-  const [maskShade, maskBase, maskAdapter, maskGuard, aoBitmap, emissionBitmap] = await Promise.all([
-    assets.maskShadeUrl ? loadImage(assets.maskShadeUrl, logs).catch(() => null) : Promise.resolve(null),
-    assets.maskBaseUrl ? loadImage(assets.maskBaseUrl, logs).catch(() => null) : Promise.resolve(null),
-    assets.maskAdapterUrl ? loadImage(assets.maskAdapterUrl, logs).catch(() => null) : Promise.resolve(null),
-    assets.maskGuardUrl ? loadImage(assets.maskGuardUrl, logs).catch(() => null) : Promise.resolve(null),
-    assets.aoUrl ? loadImage(assets.aoUrl, logs).catch(() => null) : Promise.resolve(null),
-    assets.emissionUrl ? loadImage(assets.emissionUrl, logs).catch(() => null) : Promise.resolve(null)
-  ]);
+  const [maskShade, maskBase, maskAdapter, maskGuard, aoBitmap, emissionBitmap] =
+    await Promise.all([
+      assets.maskShadeUrl
+        ? loadImage(assets.maskShadeUrl, logs).catch(() => null)
+        : Promise.resolve(null),
+      assets.maskBaseUrl
+        ? loadImage(assets.maskBaseUrl, logs).catch(() => null)
+        : Promise.resolve(null),
+      assets.maskAdapterUrl
+        ? loadImage(assets.maskAdapterUrl, logs).catch(() => null)
+        : Promise.resolve(null),
+      assets.maskGuardUrl
+        ? loadImage(assets.maskGuardUrl, logs).catch(() => null)
+        : Promise.resolve(null),
+      assets.aoUrl
+        ? loadImage(assets.aoUrl, logs).catch(() => null)
+        : Promise.resolve(null),
+      assets.emissionUrl
+        ? loadImage(assets.emissionUrl, logs).catch(() => null)
+        : Promise.resolve(null)
+    ]);
 
   if (maskShade) {
     await drawTintedMask(
@@ -230,9 +257,16 @@ export async function compositeProduct(
 
   const blob =
     'convertToBlob' in canvas
-      ? await (canvas as OffscreenCanvas).convertToBlob({ type: 'image/webp', quality: 0.95 })
+      ? await (canvas as OffscreenCanvas).convertToBlob({
+          type: 'image/webp',
+          quality: 0.95
+        })
       : await new Promise<Blob>((resolve) =>
-          (canvas as HTMLCanvasElement).toBlob((b) => resolve(b as Blob), 'image/webp', 0.95)
+          (canvas as HTMLCanvasElement).toBlob(
+            (b) => resolve(b as Blob),
+            'image/webp',
+            0.95
+          )
         );
 
   const url = URL.createObjectURL(blob);
