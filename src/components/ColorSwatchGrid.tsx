@@ -1,19 +1,20 @@
 import { useMemo } from 'react';
 import { ColorFilter } from '../types/colors';
 import { ColorSwatch, PartKey } from '../types/configurator';
-import { allFinishes, filterColors } from '../utils/colors';
+import { filterColors } from '../utils/colors';
 
 interface Props {
   activePart: PartKey;
   onPartChange: (part: PartKey) => void;
-  filter: ColorFilter;
-  onFilterChange: (filter: ColorFilter) => void;
   selected: Record<PartKey, ColorSwatch>;
   onSelect: (part: PartKey, swatch: ColorSwatch) => void;
 }
 
-export default function ColorSwatchGrid({ activePart, onPartChange, filter, onFilterChange, selected, onSelect }: Props) {
+export default function ColorSwatchGrid({ activePart, onPartChange, selected, onSelect }: Props) {
+  const filter = useMemo<ColorFilter>(() => ({ search: '', finish: 'all', part: activePart }), [activePart]);
   const options = useMemo(() => filterColors(filter), [filter]);
+  const activeSwatch = selected[activePart];
+  const label = activePart.charAt(0).toUpperCase() + activePart.slice(1);
   return (
     <div className="card">
       <div className="card-header">
@@ -28,25 +29,9 @@ export default function ColorSwatchGrid({ activePart, onPartChange, filter, onFi
             </button>
           ))}
         </div>
-        <div className="filter-row">
-          <input
-            type="search"
-            placeholder="Search colors"
-            value={filter.search}
-            onChange={(e) => onFilterChange({ ...filter, search: e.target.value })}
-          />
-          <select
-            value={filter.finish}
-            onChange={(e) => onFilterChange({ ...filter, finish: e.target.value as ColorFilter['finish'] })}
-          >
-            {allFinishes().map((finish) => (
-              <option key={finish} value={finish}>
-                {finish}
-              </option>
-            ))}
-          </select>
-          <button onClick={() => onFilterChange({ ...filter, search: '', finish: 'all' })}>Clear</button>
-        </div>
+      </div>
+      <div className="current-color">
+        {label} color: {activeSwatch?.name} ({activeSwatch?.finish})
       </div>
       <div className="swatch-grid">
         {options.map((swatch) => {
@@ -54,15 +39,11 @@ export default function ColorSwatchGrid({ activePart, onPartChange, filter, onFi
           return (
             <button
               key={swatch.id}
-              className={`swatch ${isActive ? 'active' : ''}`}
+              className={`swatch-dot ${isActive ? 'active' : ''}`}
               onClick={() => onSelect(activePart, swatch)}
               title={`${swatch.name} (${swatch.finish})`}
             >
-              <span className="swatch-chip" style={{ background: swatch.hex }} />
-              <span className="swatch-meta">
-                <span className="swatch-name">{swatch.name}</span>
-                <span className="swatch-finish">{swatch.finish}</span>
-              </span>
+              <span className="swatch-dot-inner" style={{ background: swatch.hex }} />
             </button>
           );
         })}
