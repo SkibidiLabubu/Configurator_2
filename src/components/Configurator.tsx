@@ -4,10 +4,8 @@ import {
   AvailabilityMap,
   ColorSwatch,
   Configuration,
-  PartKey,
-  StateId
+  PartKey
 } from '../types/configurator';
-import { ColorFilter } from '../types/colors';
 import ColorSwatchGrid from './ColorSwatchGrid';
 import {
   buildAvailabilityMap,
@@ -34,6 +32,14 @@ function isSameConfiguration(a: Configuration, b: Configuration) {
   );
 }
 
+function formatBaseId(id: string) {
+  return `Base ${id.replace('base_', '').replace(/^0+/, '')}`;
+}
+
+function formatShadeId(id: string) {
+  return `Shade ${id.replace('shade_', '').replace(/^0+/, '')}`;
+}
+
 export default function Configurator() {
   const [availability, setAvailability] = useState<AvailabilityMap>(() => buildStaticManifest());
   const [configuration, setConfiguration] = useState<Configuration>(() => pickFirstAvailableConfiguration(buildStaticManifest()));
@@ -45,7 +51,6 @@ export default function Configurator() {
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [fetchLogs, setFetchLogs] = useState<any[]>([]);
   const [activePart, setActivePart] = useState<PartKey>('shade');
-  const [colorFilter, setColorFilter] = useState<ColorFilter>({ search: '', finish: 'all', part: 'shade' });
   const [lampName, setLampName] = useState<string>(() => getRandomName());
   const debounceRef = useRef<number>();
   const configRef = useRef<Configuration>(configuration);
@@ -121,12 +126,20 @@ export default function Configurator() {
   const bases = useMemo(() => keys(availability), [availability]);
   const shades = useMemo(() => keys(availability[configuration.base] || {}), [availability, configuration.base]);
   const cameras = useMemo(() => keys(availability[configuration.base]?.[configuration.shade] || {}), [availability, configuration.base, configuration.shade]);
-  const states = useMemo(() => keys(availability[configuration.base]?.[configuration.shade]?.[configuration.camera] || {}), [availability, configuration.base, configuration.shade, configuration.camera]);
-
   const currentAvailability = availability[configuration.base]?.[configuration.shade]?.[configuration.camera]?.[configuration.state];
 
   function updateConfig(partial: Partial<Configuration>) {
-    setConfiguration((prev) => coerceConfig({ ...prev, ...partial }, availability));
+    const next = coerceConfig({ ...configRef.current, ...partial }, availability);
+    // Update the ref immediately so probes compare against the latest selection.
+    // This prevents the first click from being ignored due to stale configRef values.
+    configRef.current = next;
+    setConfiguration(next);
+    const nextAvailability = availability[next.base]?.[next.shade]?.[next.camera]?.[next.state];
+    if (nextAvailability) {
+      setCurrentAsset(nextAvailability);
+      preloadAssetSet(nextAvailability);
+      setStatus(nextAvailability.exists ? 'Assets ready' : 'Missing render assets');
+    }
   }
 
   function handleColorSelect(part: PartKey, swatch: ColorSwatch) {
@@ -166,9 +179,72 @@ export default function Configurator() {
       .catch(() => setStatus('Cart request failed'));
   }
 
+  function cycleBase(delta: number) {
+    if (!bases.length) return;
+    const index = bases.indexOf(configuration.base);
+    const nextIndex = (index + delta + bases.length) % bases.length;
+    updateConfig({ base: bases[nextIndex] });
+  }
+
+  function cycleShade(delta: number) {
+    if (!shades.length) return;
+    const index = shades.indexOf(configuration.shade);
+    const nextIndex = (index + delta + shades.length) % shades.length;
+    updateConfig({ shade: shades[nextIndex] });
+  }
+
   return (
     <div className="configurator-grid">
-      <div className="sidebar">
+      <div className="preview-card">
+        <div className="preview-shell">
+          {displayUrl && <img src={displayUrl} className="preview" alt="Preview" />}
+          {isCompositing && <div className="skeleton" />}
+          {!currentAvailability?.exists && <div className="overlay">Missing render assets…</div>}
+          <div className="preview-controls top-right">
+            <div className="preview-control-label">📷</div>
+            <div className="preview-control-buttons">
+              {cameras.map((camera, index) => (
+                <button
+                  key={camera}
+                  className={`preview-control-button ${configuration.camera === camera ? 'active' : ''}`}
+                  onClick={() => updateConfig({ camera })}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="preview-controls bottom-left">
+            <button
+              className={`preview-toggle ${configuration.state === 'on' ? 'active' : ''}`}
+              onClick={() => updateConfig({ state: configuration.state === 'on' ? 'off' : 'on' })}
+              title={`Lamp ${configuration.state === 'on' ? 'on' : 'off'}`}
+            >
+              {configuration.state === 'on' ? '💡' : '🔌'}
+            </button>
+          </div>
+          <div className="preview-carousel base-carousel">
+            <button className="carousel-button" onClick={() => cycleBase(-1)} aria-label="Previous base">
+              ‹
+            </button>
+            <span className="carousel-label">{formatBaseId(configuration.base)}</span>
+            <button className="carousel-button" onClick={() => cycleBase(1)} aria-label="Next base">
+              ›
+            </button>
+          </div>
+          <div className="preview-carousel shade-carousel">
+            <button className="carousel-button" onClick={() => cycleShade(-1)} aria-label="Previous shade">
+              ‹
+            </button>
+            <span className="carousel-label">{formatShadeId(configuration.shade)}</span>
+            <button className="carousel-button" onClick={() => cycleShade(1)} aria-label="Next shade">
+              ›
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="controls-column">
         <div className="card">
           <h3>Bases</h3>
           <div className="selector-grid">
@@ -178,7 +254,7 @@ export default function Configurator() {
                 className={`tile ${configuration.base === base ? 'active' : ''}`}
                 onClick={() => updateConfig({ base })}
               >
-                <span className="tile-thumb">{base}</span>
+                <span className="tile-thumb">{formatBaseId(base)}</span>
               </button>
             ))}
           </div>
@@ -192,7 +268,7 @@ export default function Configurator() {
                 className={`tile ${configuration.shade === shade ? 'active' : ''}`}
                 onClick={() => updateConfig({ shade })}
               >
-                <span className="tile-thumb">{shade}</span>
+                <span className="tile-thumb">{formatShadeId(shade)}</span>
               </button>
             ))}
           </div>
@@ -202,44 +278,10 @@ export default function Configurator() {
           activePart={activePart}
           onPartChange={(part) => {
             setActivePart(part);
-            setColorFilter((f) => ({ ...f, part }));
           }}
-          filter={colorFilter}
-          onFilterChange={(filter) => setColorFilter(filter)}
           selected={configuration.colors}
           onSelect={handleColorSelect}
         />
-
-        <div className="card">
-          <h3>Camera</h3>
-          <div className="segmented">
-            {cameras.map((camera) => (
-              <button
-                key={camera}
-                className={`segmented-button ${configuration.camera === camera ? 'active' : ''}`}
-                onClick={() => updateConfig({ camera })}
-              >
-                {camera}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <h3>State</h3>
-          <div className="segmented">
-            {states.map((state) => (
-              <button
-                key={state}
-                className={`segmented-button ${configuration.state === state ? 'active' : ''}`}
-                disabled={!availability[configuration.base]?.[configuration.shade]?.[configuration.camera]?.[state as StateId]}
-                onClick={() => updateConfig({ state: state as StateId })}
-              >
-                {state}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div className="card">
           <h3>Lamp name</h3>
@@ -278,14 +320,6 @@ export default function Configurator() {
               <pre>{lampName}</pre>
             </div>
           )}
-        </div>
-      </div>
-
-      <div className="preview-card">
-        <div className="preview-shell">
-          {displayUrl && <img src={displayUrl} className="preview" alt="Preview" />}
-          {isCompositing && <div className="skeleton" />}
-          {!currentAvailability?.exists && <div className="overlay">Missing render assets…</div>}
         </div>
       </div>
     </div>

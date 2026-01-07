@@ -209,19 +209,6 @@ export async function compositeProduct(
         : Promise.resolve(null)
     ]);
 
-  if (maskShade) {
-    await drawTintedMask(
-      ctx,
-      maskShade,
-      baseBitmap,
-      colors.shade,
-      colorStrength,
-      aoBitmap || undefined,
-      aoIntensity,
-      emissionBitmap || undefined,
-      emissionIntensity
-    );
-  }
   if (maskBase) {
     await drawTintedMask(
       ctx,
@@ -254,6 +241,19 @@ export async function compositeProduct(
       maskGuard,
       baseBitmap,
       colors.guard,
+      colorStrength,
+      aoBitmap || undefined,
+      aoIntensity,
+      emissionBitmap || undefined,
+      emissionIntensity
+    );
+  }
+  if (maskShade) {
+    await drawTintedMask(
+      ctx,
+      maskShade,
+      baseBitmap,
+      colors.shade,
       colorStrength,
       aoBitmap || undefined,
       aoIntensity,
