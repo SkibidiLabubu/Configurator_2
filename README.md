@@ -46,4 +46,4 @@ Key environment flags (set as `VITE_*` vars):
 
 ## Deployment
 
-`netlify.toml` points to `npm run build` with `dist` output. Any static host will work.
+`netlify.toml` points to `npm run build` with `dist` output. Any static host can use the same build.
