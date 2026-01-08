@@ -95,10 +95,28 @@ async function drawTintedMask(
   }
 
   const data = maskData.data;
+  let alphaMin = 1;
+  let alphaMax = 0;
+  let lumSum = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3] / 255;
+    alphaMin = Math.min(alphaMin, alpha);
+    alphaMax = Math.max(alphaMax, alpha);
+    lumSum += luminance(data[i], data[i + 1], data[i + 2]) / 255;
+  }
+
+  const alphaRange = alphaMax - alphaMin;
+  const useLuminanceOnly = alphaRange < 0.01;
+  const lumMean = lumSum / (data.length / 4);
+  const invertLuminance = useLuminanceOnly && lumMean > 0.5;
+
   for (let i = 0; i < data.length; i += 4) {
     const maskAlphaChannel = data[i + 3] / 255;
     const maskLum = luminance(data[i], data[i + 1], data[i + 2]) / 255;
-    const alpha = maskAlphaChannel > 0 ? maskAlphaChannel : maskLum;
+    let alpha = maskAlphaChannel;
+    if (useLuminanceOnly || maskAlphaChannel < 0.01) {
+      alpha = invertLuminance ? 1 - maskLum : maskLum;
+    }
     if (alpha < 0.01) {
       baseData.data[i + 3] = 0;
       continue;

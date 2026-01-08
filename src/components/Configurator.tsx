@@ -40,6 +40,30 @@ function formatShadeId(id: string) {
   return `Shade ${id.replace('shade_', '').replace(/^0+/, '')}`;
 }
 
+function CameraIcon() {
+  return (
+    <svg className="icon icon-camera" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="6" width="18" height="12" rx="3" />
+      <circle cx="12" cy="12" r="4" />
+      <rect x="7" y="4" width="4" height="2" rx="1" />
+    </svg>
+  );
+}
+
+function BulbIcon({ on }: { on: boolean }) {
+  return (
+    <svg
+      className={`icon icon-bulb ${on ? 'on' : 'off'}`}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="M12 3a6 6 0 0 0-3 11.3V16h6v-1.7A6 6 0 0 0 12 3z" />
+      <rect x="9" y="16" width="6" height="2" rx="1" />
+      <rect x="9" y="19" width="6" height="2" rx="1" />
+    </svg>
+  );
+}
+
 export default function Configurator() {
   const [availability, setAvailability] = useState<AvailabilityMap>(() => buildStaticManifest());
   const [configuration, setConfiguration] = useState<Configuration>(() => pickFirstAvailableConfiguration(buildStaticManifest()));
@@ -201,7 +225,9 @@ export default function Configurator() {
           {isCompositing && <div className="skeleton" />}
           {!currentAvailability?.exists && <div className="overlay">Missing render assets…</div>}
           <div className="preview-controls top-right">
-            <div className="preview-control-label">📷</div>
+            <div className="preview-control-label">
+              <CameraIcon />
+            </div>
             <div className="preview-control-buttons">
               {cameras.map((camera, index) => (
                 <button
@@ -220,7 +246,7 @@ export default function Configurator() {
               onClick={() => updateConfig({ state: configuration.state === 'on' ? 'off' : 'on' })}
               title={`Lamp ${configuration.state === 'on' ? 'on' : 'off'}`}
             >
-              {configuration.state === 'on' ? '💡' : '🔌'}
+              <BulbIcon on={configuration.state === 'on'} />
             </button>
           </div>
           <div className="preview-carousel base-carousel">
@@ -245,35 +271,6 @@ export default function Configurator() {
       </div>
 
       <div className="controls-column">
-        <div className="card">
-          <h3>Bases</h3>
-          <div className="selector-grid">
-            {bases.map((base) => (
-              <button
-                key={base}
-                className={`tile ${configuration.base === base ? 'active' : ''}`}
-                onClick={() => updateConfig({ base })}
-              >
-                <span className="tile-thumb">{formatBaseId(base)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="card">
-          <h3>Shades</h3>
-          <div className="selector-grid">
-            {shades.map((shade) => (
-              <button
-                key={shade}
-                className={`tile ${configuration.shade === shade ? 'active' : ''}`}
-                onClick={() => updateConfig({ shade })}
-              >
-                <span className="tile-thumb">{formatShadeId(shade)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         <ColorSwatchGrid
           activePart={activePart}
           onPartChange={(part) => {
