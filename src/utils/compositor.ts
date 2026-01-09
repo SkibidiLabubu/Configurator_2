@@ -98,27 +98,17 @@ async function drawTintedMask(
   let alphaMin = 1;
   let alphaMax = 0;
   let lumSum = 0;
-  let alphaCoverage = 0;
-  let lumCoverage = 0;
   for (let i = 0; i < data.length; i += 4) {
     const alpha = data[i + 3] / 255;
     alphaMin = Math.min(alphaMin, alpha);
     alphaMax = Math.max(alphaMax, alpha);
-    if (alpha > 0.5) alphaCoverage += 1;
-    const lum = luminance(data[i], data[i + 1], data[i + 2]) / 255;
-    lumSum += lum;
-    if (lum > 0.5) lumCoverage += 1;
+    lumSum += luminance(data[i], data[i + 1], data[i + 2]) / 255;
   }
 
-  const totalPixels = data.length / 4;
   const alphaRange = alphaMax - alphaMin;
-  const alphaCoverageRatio = alphaCoverage / totalPixels;
-  const lumCoverageRatio = lumCoverage / totalPixels;
-  const useLuminanceOnly =
-    alphaRange < 0.01 || alphaCoverageRatio > 0.75 || alphaCoverageRatio < 0.25;
-  const lumMean = lumSum / totalPixels;
-  const invertLuminance =
-    useLuminanceOnly && (lumMean > 0.5 || lumCoverageRatio > 0.5);
+  const useLuminanceOnly = alphaRange < 0.01;
+  const lumMean = lumSum / (data.length / 4);
+  const invertLuminance = useLuminanceOnly && lumMean > 0.5;
 
   for (let i = 0; i < data.length; i += 4) {
     const maskAlphaChannel = data[i + 3] / 255;
