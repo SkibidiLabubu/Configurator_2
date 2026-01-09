@@ -232,7 +232,8 @@ body {
 }
 
 .preview-control-label {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .preview-control-buttons {
@@ -262,12 +263,31 @@ body {
   padding: 10px 12px;
   border-radius: 999px;
   cursor: pointer;
-  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .preview-toggle.active {
   background: #22c55e;
   color: #0f172a;
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.icon-camera rect,
+.icon-camera circle,
+.icon-bulb path,
+.icon-bulb rect {
+  fill: currentColor;
+}
+
+.icon-bulb.on {
+  filter: drop-shadow(0 0 6px rgba(250, 250, 210, 0.8));
 }
 
 .preview-carousel {
